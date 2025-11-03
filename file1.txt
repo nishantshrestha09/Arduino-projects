@@ -1,0 +1,60 @@
+#include <SoftwareSerial.h>
+#include <DFRobotDFPlayerMini.h>
+
+// Define pins
+const int pirPin = 7;      // PIR sensor output connected to digital pin 2
+const int ledPin = 6;     // LED connected to digital pin 13
+const int dfPlayerRxPin = 3;  // Arduino TX to DFPlayer RX
+const int dfPlayerTxPin = 2;  // Arduino RX to DFPlayer TX
+
+// Initialize SoftwareSerial for DFPlayer
+SoftwareSerial mySoftwareSerial(dfPlayerRxPin, dfPlayerTxPin);
+
+// Initialize DFPlayer object
+DFRobotDFPlayerMini myDFPlayer;
+
+void setup() {
+  // Set pin modes
+  pinMode(pirPin, INPUT);
+  pinMode(ledPin, OUTPUT);
+  
+  // Start SoftwareSerial for DFPlayer
+  mySoftwareSerial.begin(9600);
+  
+  // Start Serial for debugging (optional, can be removed)
+  Serial.begin(115200);
+  
+  // Initialize DFPlayer
+  if (!myDFPlayer.begin(mySoftwareSerial)) {
+    Serial.println(F("Unable to begin DFPlayer. Check connections and SD card."));
+    while (true);  // Halt if initialization fails
+  }
+  
+  // Set volume (0-30)
+  myDFPlayer.volume(30);
+  myDFPlayer.play(1); 
+  Serial.println("DF Player Mini Initialized Successfully");
+  // Initial LED off
+  digitalWrite(ledPin, LOW);
+}
+
+void loop() {
+  // Read PIR sensor
+  if (digitalRead(pirPin) == HIGH) {
+    // Motion detected
+    Serial.println("Motion Detected");
+    digitalWrite(ledPin, HIGH);  // Turn on LED
+    myDFPlayer.play(2);          // Play file 001 (assuming it's the first file on the SD card)
+    
+    // Delay to allow audio to play (adjust based on audio length; PIR may retrigger)
+    delay(30000);  // Example: 5 seconds delay, replace with actual audio duration if known
+    
+    digitalWrite(ledPin, LOW);   // Turn off LED after delay
+  }
+  else {
+    if (digitalRead(pirPin) == LOW) {
+      Serial.println("Motion Cleared");
+      delay(1000);
+  }
+}
+}
