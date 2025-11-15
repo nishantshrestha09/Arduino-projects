@@ -1,0 +1,44 @@
+#include<Servo.h>
+#include<LiquidCrystal_I2C.h>
+LiquidCrystal_I2C lcd(0x27,16,2);
+int gas = 4;
+int greenled= 5;
+int redled=6;
+int buzzer=A0;
+Servo s1;
+int x;
+
+void setup() {
+  // put your setup code here, to run once:
+pinMode(4,INPUT);
+pinMode(5,OUTPUT);
+pinMode(6,OUTPUT);
+pinMode(A0,OUTPUT);
+s1.attach(7);
+lcd.init();
+lcd.backlight();
+}
+
+void loop() {
+  // put your main code here, to run repeatedly:
+x=digitalRead(gas);
+if(x==1){
+  digitalWrite(6,HIGH);
+  digitalWrite(5,LOW);
+   analogWrite(A0,190);
+   s1.write(180);
+   lcd.setCursor(0,1);
+   lcd.print("gas alert");
+   //lcd.clear();
+   //delay(4000);
+}
+else{
+  digitalWrite(6,LOW);
+  digitalWrite(5,HIGH);
+  analogWrite(A0,30);
+s1.write(0);
+lcd.setCursor(1,1);
+lcd.print("all safe");
+//
+}
+}
