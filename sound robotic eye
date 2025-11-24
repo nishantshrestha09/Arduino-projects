@@ -1,0 +1,142 @@
+#include <Wire.h>
+#include <Adafruit_SSD1306.h>
+#include <FluxGarage_RoboEyes.h>
+
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+#define OLED_RESET -1
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+
+// create RoboEyes instance
+RoboEyes<Adafruit_SSD1306> roboEyes(display); 
+
+#define Ssensor 2
+#define buzzer 3
+
+unsigned long lastSound = 0;
+int debounceTime = 800;    // 0.8s debounce
+
+// Multi-sound detection
+unsigned long firstSoundTime = 0;
+int soundCount = 0;
+const unsigned long multiSoundWindow = 2000; // 2 seconds window
+
+// Mood reset
+unsigned long moodChangedTime = 0;
+bool moodChanged = false;
+
+// Idle cute sound
+unsigned long lastIdleSound = 0;
+const unsigned long idleSoundInterval = 5000; // play every 5 seconds
+
+// Function to play buzzer patterns per mood
+void playBuzzerForMood(String mood) {
+  if (mood == "ANGRY") {
+    for (int i = 0; i < 2; i++) {
+      tone(buzzer, 1000);
+      delay(80);
+      noTone(buzzer);
+      delay(80);
+    }
+  } else if (mood == "HAPPY") {
+    for (int i = 0; i < 3; i++) {
+      tone(buzzer, 1500);
+      delay(50);
+      noTone(buzzer);
+      delay(50);
+    }
+  } else if (mood == "TIRED") {
+    tone(buzzer, 600);
+    delay(300);
+    noTone(buzzer);
+  } else if (mood == "DEFAULT") {
+    // cute idle chirp
+    tone(buzzer, random(1800, 2200));  // random high pitch
+    delay(40);
+    noTone(buzzer);
+  }
+}
+
+void setup() {
+  pinMode(Ssensor, INPUT);
+  pinMode(buzzer, OUTPUT);
+  digitalWrite(buzzer, LOW);
+
+  Serial.begin(9600);
+
+  if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
+    Serial.println(F("SSD1306 allocation failed"));
+    for(;;);
+  }
+  display.clearDisplay();
+  display.display();
+
+  roboEyes.begin(SCREEN_WIDTH, SCREEN_HEIGHT, 100);
+  roboEyes.setAutoblinker(ON, 8, 2);
+  roboEyes.setIdleMode(ON, 2, 1);
+  roboEyes.setMood(DEFAULT);
+  roboEyes.open();
+}
+
+void loop() {
+  unsigned long currentMillis = millis();
+
+  // --- Sound detection ---
+  if (digitalRead(Ssensor) == HIGH && (currentMillis - lastSound > debounceTime)) {
+    lastSound = currentMillis;
+
+    if (firstSoundTime == 0 || (currentMillis - firstSoundTime > multiSoundWindow)) {
+      firstSoundTime = currentMillis;
+      soundCount = 1;
+    } else {
+      soundCount++;
+    }
+
+    // --- Choose action based on number of sounds ---
+    if (soundCount == 1) {
+      roboEyes.setMood(ANGRY);
+      roboEyes.blink();
+      roboEyes.open();
+      playBuzzerForMood("ANGRY");
+      moodChangedTime = currentMillis;
+      moodChanged = true;
+    }
+    else if (soundCount == 2) {
+      roboEyes.setMood(HAPPY);
+      roboEyes.anim_laugh();
+      playBuzzerForMood("HAPPY");
+      moodChangedTime = currentMillis;
+      moodChanged = true;
+    }
+    else if (soundCount >= 3) {
+      roboEyes.setMood(TIRED);
+      roboEyes.anim_confused();
+      playBuzzerForMood("TIRED");
+      soundCount = 0;
+      firstSoundTime = 0;
+      moodChangedTime = currentMillis;
+      moodChanged = true;
+    }
+  }
+
+  // --- Reset mood after 3 seconds ---
+  if (moodChanged && currentMillis - moodChangedTime > 3000) {
+    roboEyes.setMood(DEFAULT);
+    moodChanged = false;
+  }
+
+  // --- Idle cute sound ---
+  if (!moodChanged && currentMillis - lastIdleSound > idleSoundInterval) {
+    lastIdleSound = currentMillis;
+    playBuzzerForMood("DEFAULT");
+  }
+
+  // --- Update RoboEyes animations ---
+  roboEyes.update();
+
+  // Reset counter if too much time passed
+  if (firstSoundTime > 0 && currentMillis - firstSoundTime > multiSoundWindow) {
+    soundCount = 0;
+    firstSoundTime = 0;
+  }
+}
