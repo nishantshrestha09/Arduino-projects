@@ -1,0 +1,91 @@
+#include <SoftwareSerial.h>
+
+#define IN1 8   // Motor driver pins (change if your wiring is different)
+#define IN2 9
+#define IN3 12
+#define IN4 13
+
+SoftwareSerial vcSerial(10, 11);  // RX=10, TX=11 for VC-02 module
+
+bool isMovingForward = false;     // Flag to keep forward running
+
+void setup() {
+  Serial.begin(115200);           // For debugging on USB Serial Monitor
+  vcSerial.begin(9600);           // VC-02 voice module at 9600 baud
+
+  pinMode(IN1, OUTPUT);
+  pinMode(IN2, OUTPUT);
+  pinMode(IN3, OUTPUT);
+  pinMode(IN4, OUTPUT);
+
+  stopMotors();                   // Start with motors stopped
+}
+
+void loop() {
+  if (vcSerial.available()) {
+    byte data = vcSerial.read();
+    Serial.print("Command received: 0x");
+    Serial.println(data, HEX);
+
+   if (data == 0x00) {
+      // Move Forward (continuous)
+      isMovingForward = false;
+      digitalWrite(IN1, HIGH);
+      digitalWrite(IN2, LOW);
+      digitalWrite(IN3, HIGH);
+      digitalWrite(IN4, LOW);
+      delay(3000);
+      stopMotors();
+    }
+    else if (data == 0x11) {
+      // Move Backward for 2 seconds
+      isMovingForward = false;
+      digitalWrite(IN1, LOW);
+      digitalWrite(IN2, HIGH);
+      digitalWrite(IN3, LOW);
+      digitalWrite(IN4, HIGH);
+      delay(2000);
+      stopMotors();
+    }
+    else if (data == 0x12) {
+      // Turn Left for 1 second
+      isMovingForward = false;
+      digitalWrite(IN1, LOW);
+      digitalWrite(IN2, LOW);
+      digitalWrite(IN3, HIGH);
+      digitalWrite(IN4, LOW);
+      delay(700);
+      stopMotors();
+    }
+    else if (data == 0x13) {
+      // Turn Right for 1 second
+      isMovingForward = false;
+      digitalWrite(IN1, HIGH);
+      digitalWrite(IN2, LOW);
+      digitalWrite(IN3, LOW);
+      digitalWrite(IN4, LOW);
+      delay(800);
+      stopMotors();
+    }
+    else if (data == 0x10) {
+      // Stop
+      isMovingForward = false;
+      stopMotors();
+    }
+  }
+
+  // Keep forward running if flag is set
+  if (isMovingForward) {
+    digitalWrite(IN1, HIGH);
+    digitalWrite(IN2, LOW);
+    digitalWrite(IN3, HIGH);
+    digitalWrite(IN4, LOW);
+  }
+}
+
+void stopMotors() {
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, LOW);
+  digitalWrite(IN3, LOW);
+  digitalWrite(IN4, LOW);
+}
