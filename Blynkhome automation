@@ -1,0 +1,33 @@
+#define BLYNK_TEMPLATE_ID "TMPL6YD8lU3JO"
+#define BLYNK_TEMPLATE_NAME "Innovations"
+#define BLYNK_AUTH_TOKEN "vf3YKoY4oLtxrO8mG4Nq_0_q_EO527Y1"
+
+#include <WiFi.h>
+#include <BlynkSimpleEsp32.h>
+
+char ssid[] = "shrestha@vianet";
+char pass[] = "welcome98193";
+
+int led = 2;
+
+void setup() {
+  // put your setup code here, to run once:
+pinMode(2,OUTPUT);
+
+digitalWrite(2,HIGH);
+digitalWrite(2,LOW);
+
+Blynk.begin(BLYNK_AUTH_TOKEN,ssid,pass);
+
+//pinMode(3,OUTPUT);
+}
+
+void loop() {
+
+  Blynk.run();
+}
+
+BLYNK_WRITE(V0) {
+  digitalWrite(led,param.asInt() ? LOW : HIGH);
+}
+  // put your main code here, to run repeatedly:
