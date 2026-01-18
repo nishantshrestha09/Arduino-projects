@@ -1,0 +1,158 @@
+#include <SPI.h>
+#include <nRF24L01.h>
+#include <RF24.h>
+
+// ---------------- RF24 ----------------
+RF24 radio(9, 10);   // CE, CSN
+const byte address[6] = "00001";
+
+// ---------------- MOTOR PINS ----------------
+#define enA 3
+#define in1 4
+#define in2 5
+#define in3 6
+#define in4 7
+#define enB 8
+
+// ---------------- STATUS LED ----------------
+#define GREEN_LED 2
+
+// ---------------- JOYSTICK CALIBRATION ----------------
+#define X_CENTER 660     // Forward / Backward
+#define Y_CENTER 655     // Left / Right
+
+// ---------------- TUNING ----------------
+#define DEADZONE_THROTTLE 40
+#define DEADZONE_STEER   70
+
+#define MAX_INPUT        512
+#define MAX_SPEED        140     // ↓ reduced top speed
+#define MIN_RUN_PWM      55
+#define START_KICK_PWM   70
+
+#define STEER_SCALE      0.35    // softer steering
+#define LOW_THROTTLE_LOCK 80     // steering reduction threshold
+
+// ---------------- VARIABLES ----------------
+char receivedData[32];
+int xAxis = X_CENTER;
+int yAxis = Y_CENTER;
+
+unsigned long lastSignalTime = 0;
+const unsigned long SIGNAL_TIMEOUT = 500;
+
+// ---------------- SETUP ----------------
+void setup() {
+  Serial.begin(9600);
+  Serial.println("RC Receiver – Smooth Mode");
+
+  radio.begin();
+  radio.openReadingPipe(0, address);
+  radio.setPALevel(RF24_PA_MIN);
+  radio.startListening();
+
+  pinMode(enA, OUTPUT);
+  pinMode(enB, OUTPUT);
+  pinMode(in1, OUTPUT);
+  pinMode(in2, OUTPUT);
+  pinMode(in3, OUTPUT);
+  pinMode(in4, OUTPUT);
+
+  pinMode(GREEN_LED, OUTPUT);
+  stopMotors();
+}
+
+// ---------------- LOOP ----------------
+void loop() {
+
+  // ---------- RF RECEIVE ----------
+  if (radio.available()) {
+    radio.read(receivedData, sizeof(receivedData));
+    receivedData[31] = '\0';
+
+    char *xStr = strtok(receivedData, ",");
+    char *yStr = strtok(NULL, ",");
+
+    if (xStr && yStr) {
+      xAxis = atoi(xStr);
+      yAxis = atoi(yStr);
+      lastSignalTime = millis();
+      digitalWrite(GREEN_LED, HIGH);
+    }
+  }
+
+  // ---------- SIGNAL LOST ----------
+  if (millis() - lastSignalTime > SIGNAL_TIMEOUT) {
+    digitalWrite(GREEN_LED, millis() % 500 < 250);
+    stopMotors();
+    return;
+  }
+
+  handleMovement(xAxis, yAxis);
+}
+
+// ---------------- MOVEMENT LOGIC ----------------
+void handleMovement(int x, int y) {
+
+  int throttle = x - X_CENTER;
+  int steering = y - Y_CENTER;
+
+  throttle = applyDeadzone(throttle, DEADZONE_THROTTLE);
+  steering = applyDeadzone(steering, DEADZONE_STEER);
+
+  // Reduce steering while moving (prevents drift)
+  if (abs(throttle) > LOW_THROTTLE_LOCK) {
+    steering *= STEER_SCALE;
+  }
+
+  int leftMotor  = throttle + steering;
+  int rightMotor = throttle - steering;
+
+  leftMotor  = constrain(leftMotor, -MAX_INPUT, MAX_INPUT);
+  rightMotor = constrain(rightMotor, -MAX_INPUT, MAX_INPUT);
+
+  driveMotor(enA, in1, in2, leftMotor);
+  driveMotor(enB, in3, in4, rightMotor);
+}
+
+// ---------------- MOTOR DRIVER ----------------
+void driveMotor(int en, int pin1, int pin2, int value) {
+
+  if (value == 0) {
+    analogWrite(en, 0);
+    digitalWrite(pin1, LOW);
+    digitalWrite(pin2, LOW);
+    return;
+  }
+
+  // Direction
+  if (value > 0) {
+    digitalWrite(pin1, HIGH);
+    digitalWrite(pin2, LOW);
+  } else {
+    digitalWrite(pin1, LOW);
+    digitalWrite(pin2, HIGH);
+  }
+
+  int pwm = map(abs(value), 0, MAX_INPUT, MIN_RUN_PWM, MAX_SPEED);
+
+  // startup kick
+  if (pwm < START_KICK_PWM) pwm = START_KICK_PWM;
+
+  analogWrite(en, pwm);
+}
+
+// ---------------- UTILITIES ----------------
+int applyDeadzone(int val, int zone) {
+  if (abs(val) < zone) return 0;
+  return val;
+}
+
+void stopMotors() {
+  analogWrite(enA, 0);
+  analogWrite(enB, 0);
+  digitalWrite(in1, LOW);
+  digitalWrite(in2, LOW);
+  digitalWrite(in3, LOW);
+  digitalWrite(in4, LOW);
+}
