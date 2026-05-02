@@ -1,0 +1,70 @@
+// Alcohol detector and Safety system for ESP8266 NodeMCU
+
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+
+// Set the LCD address to 0x27 for a 16 chars and 2 line display
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+
+// Pin Definitions for NodeMCU
+#define MQ3_PIN A0  // NodeMCU has only one analog input pin (A0)
+#define BUZZER D5   // Mapped to D5 (GPIO14)
+#define RELAY D6    // Mapped to D6 (GPIO12)
+
+int alcoholValue = 0;
+int threshold = 350;   // You may need to re-calibrate this for the NodeMCU's ADC
+
+void setup() {
+  // 115200 is the standard stable baud rate for ESP8266 boards
+  Serial.begin(115200);
+
+  // Initialize I2C. On NodeMCU, default I2C pins are SDA = D2, SCL = D1
+  Wire.begin(); 
+
+  pinMode(BUZZER, OUTPUT);
+  pinMode(RELAY, OUTPUT);
+
+  digitalWrite(BUZZER, LOW);
+  digitalWrite(RELAY, HIGH);  // Motor ON initially
+
+  lcd.init();
+  lcd.backlight();
+
+  lcd.setCursor(0, 0);
+  lcd.print("Alcohol Detector");
+  lcd.setCursor(0, 1);
+  lcd.print("Warming up...");
+  
+  delay(10000);  // 10 sec warm-up for MQ3 (Wait longer for accurate readings)
+  
+  lcd.clear();
+}
+
+void loop() {
+  alcoholValue = analogRead(MQ3_PIN);
+  Serial.println(alcoholValue);
+
+  lcd.setCursor(0, 0);
+  lcd.print("Value: ");
+  lcd.print(alcoholValue);
+  lcd.print("   "); // Clear trailing characters
+
+  if (alcoholValue > threshold) {
+    // Alcohol detected
+    digitalWrite(RELAY, LOW);   // Stop motor
+    digitalWrite(BUZZER, HIGH);
+
+    lcd.setCursor(0, 1);
+    lcd.print("ALCOHOL DETECTED");
+
+  } else {
+    // Safe condition
+    digitalWrite(RELAY, HIGH);  // Motor ON
+    digitalWrite(BUZZER, LOW);
+
+    lcd.setCursor(0, 1);
+    lcd.print("Status: SAFE    "); // Clear trailing characters
+  }
+
+  delay(500);
+}
